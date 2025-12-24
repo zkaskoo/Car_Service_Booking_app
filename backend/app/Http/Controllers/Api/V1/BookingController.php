@@ -16,15 +16,26 @@ class BookingController extends Controller
 
     public function index(Request $request)
     {
-        $bookings = $request->user()
+        $query = $request->user()
             ->bookings()
-            ->with(['vehicle', 'services', 'serviceBay'])
-            ->orderBy('booking_date', 'desc')
+            ->with(['vehicle', 'services', 'serviceBay']);
+
+        if ($request->has('status')) {
+            $query->where('status', $request->status);
+        }
+
+        $bookings = $query->orderBy('booking_date', 'desc')
             ->orderBy('start_time', 'desc')
-            ->get();
+            ->paginate($request->get('per_page', 10));
 
         return response()->json([
-            'bookings' => $bookings,
+            'data' => $bookings->items(),
+            'meta' => [
+                'current_page' => $bookings->currentPage(),
+                'last_page' => $bookings->lastPage(),
+                'per_page' => $bookings->perPage(),
+                'total' => $bookings->total(),
+            ],
         ]);
     }
 
@@ -60,10 +71,10 @@ class BookingController extends Controller
     {
         $this->authorize('view', $booking);
 
-        $booking->load(['vehicle', 'services', 'serviceBay', 'user']);
+        $booking->load(['vehicle', 'services', 'serviceBay', 'user', 'review']);
 
         return response()->json([
-            'booking' => $booking,
+            'data' => $booking,
         ]);
     }
 

@@ -24,7 +24,7 @@ export default function DashboardPage() {
   const { data: upcomingBookings, isLoading: isLoadingUpcoming } = useQuery({
     queryKey: ['upcomingBookings'],
     queryFn: async () => {
-      const response = await bookingAPI.getAll({ status: 'confirmed', limit: 3 });
+      const response = await bookingAPI.getAll({ status: 'confirmed', per_page: 3 });
       return response.data;
     },
   });

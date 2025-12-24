@@ -4,76 +4,66 @@ import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { vehicleAPI, serviceAPI, bookingAPI } from '@/lib/api';
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { z } from 'zod';
 import DashboardLayout from '@/components/ui/DashboardLayout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
-import Select from '@/components/ui/Select';
-import { AlertCircle, Calendar, Car as CarIcon, CheckCircle } from 'lucide-react';
-
-const bookingSchema = z.object({
-  vehicle_id: z.string().min(1, 'Please select a vehicle'),
-  service_id: z.string().min(1, 'Please select a service'),
-  scheduled_date: z.string().min(1, 'Please select a date'),
-  scheduled_time: z.string().min(1, 'Please select a time'),
-  notes: z.string().optional(),
-});
-
-type BookingFormData = z.infer<typeof bookingSchema>;
+import { AlertCircle, Calendar, CheckCircle, Wrench } from 'lucide-react';
 
 export default function NewBookingPage() {
   const router = useRouter();
   const [error, setError] = useState<string>('');
   const [success, setSuccess] = useState(false);
 
-  const {
-    register,
-    handleSubmit,
-    watch,
-    formState: { errors },
-  } = useForm<BookingFormData>({
-    resolver: zodResolver(bookingSchema),
-  });
-
-  const selectedDate = watch('scheduled_date');
-  const selectedServiceId = watch('service_id');
+  // Form state
+  const [vehicleId, setVehicleId] = useState<string>('');
+  const [selectedServices, setSelectedServices] = useState<number[]>([]);
+  const [bookingDate, setBookingDate] = useState<string>('');
+  const [startTime, setStartTime] = useState<string>('');
+  const [notes, setNotes] = useState<string>('');
 
   // Fetch vehicles
-  const { data: vehicles, isLoading: isLoadingVehicles } = useQuery({
+  const { data: vehiclesData, isLoading: isLoadingVehicles } = useQuery({
     queryKey: ['vehicles'],
     queryFn: async () => {
       const response = await vehicleAPI.getAll();
-      return response.data;
+      return response.data.data || response.data || [];
     },
   });
 
   // Fetch services
-  const { data: services, isLoading: isLoadingServices } = useQuery({
+  const { data: servicesData, isLoading: isLoadingServices } = useQuery({
     queryKey: ['services'],
     queryFn: async () => {
       const response = await serviceAPI.getAll();
-      return response.data;
+      return response.data.services || response.data.data || response.data || [];
     },
   });
 
   // Fetch available time slots
-  const { data: availableSlots } = useQuery({
-    queryKey: ['availableSlots', selectedDate, selectedServiceId],
+  const { data: availableSlots, isLoading: isLoadingSlots } = useQuery({
+    queryKey: ['availableSlots', bookingDate, selectedServices],
     queryFn: async () => {
-      if (!selectedDate || !selectedServiceId) return [];
-      const response = await bookingAPI.getAvailableSlots(selectedDate, selectedServiceId);
-      return response.data;
+      if (!bookingDate || selectedServices.length === 0) return [];
+      const response = await bookingAPI.checkAvailability({
+        date: bookingDate,
+        service_ids: selectedServices,
+      });
+      return response.data.available_slots || [];
     },
-    enabled: !!selectedDate && !!selectedServiceId,
+    enabled: !!bookingDate && selectedServices.length > 0,
   });
 
   // Create booking mutation
   const createBookingMutation = useMutation({
-    mutationFn: async (data: BookingFormData) => {
-      const response = await bookingAPI.create(data);
+    mutationFn: async () => {
+      const response = await bookingAPI.create({
+        vehicle_id: parseInt(vehicleId),
+        service_ids: selectedServices,
+        booking_date: bookingDate,
+        start_time: startTime,
+        notes: notes || undefined,
+      });
       return response.data;
     },
     onSuccess: () => {
@@ -83,13 +73,57 @@ export default function NewBookingPage() {
       }, 2000);
     },
     onError: (err: any) => {
-      setError(err.response?.data?.detail || 'Failed to create booking. Please try again.');
+      setError(err.response?.data?.message || err.response?.data?.error || 'Failed to create booking. Please try again.');
     },
   });
 
-  const onSubmit = async (data: BookingFormData) => {
+  const handleServiceToggle = (serviceId: number) => {
+    setSelectedServices(prev =>
+      prev.includes(serviceId)
+        ? prev.filter(id => id !== serviceId)
+        : [...prev, serviceId]
+    );
+    setStartTime(''); // Reset time when services change
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
     setError('');
-    createBookingMutation.mutate(data);
+
+    if (!vehicleId) {
+      setError('Please select a vehicle');
+      return;
+    }
+    if (selectedServices.length === 0) {
+      setError('Please select at least one service');
+      return;
+    }
+    if (!bookingDate) {
+      setError('Please select a date');
+      return;
+    }
+    if (!startTime) {
+      setError('Please select a time');
+      return;
+    }
+
+    createBookingMutation.mutate();
+  };
+
+  const vehicles = vehiclesData || [];
+  const services = servicesData || [];
+  const slots = availableSlots || [];
+
+  const calculateTotal = () => {
+    return services
+      .filter((s: any) => selectedServices.includes(s.id))
+      .reduce((acc: number, s: any) => acc + (s.price || 0), 0);
+  };
+
+  const calculateDuration = () => {
+    return services
+      .filter((s: any) => selectedServices.includes(s.id))
+      .reduce((acc: number, s: any) => acc + (s.duration_minutes || 0), 0);
   };
 
   if (success) {
@@ -123,15 +157,15 @@ export default function NewBookingPage() {
         </div>
 
         {/* Form */}
-        <Card className="animate-fade-in" glow>
-          <CardHeader>
-            <CardTitle>Booking Details</CardTitle>
-            <CardDescription>
-              Fill in the information below to schedule your service
-            </CardDescription>
-          </CardHeader>
+        <form onSubmit={handleSubmit}>
+          <Card className="animate-fade-in" glow>
+            <CardHeader>
+              <CardTitle>Booking Details</CardTitle>
+              <CardDescription>
+                Fill in the information below to schedule your service
+              </CardDescription>
+            </CardHeader>
 
-          <form onSubmit={handleSubmit(onSubmit)}>
             <CardContent className="space-y-6">
               {error && (
                 <div className="bg-red-500/10 border border-red-500 rounded-lg p-3 flex items-start gap-2">
@@ -142,22 +176,25 @@ export default function NewBookingPage() {
 
               {/* Vehicle Selection */}
               <div>
-                <Select
-                  label="Select Vehicle"
-                  placeholder="Choose a vehicle"
-                  options={
-                    vehicles?.map((vehicle: any) => ({
-                      value: vehicle.id,
-                      label: `${vehicle.make} ${vehicle.model} (${vehicle.year}) - ${vehicle.license_plate}`,
-                    })) || []
-                  }
-                  error={errors.vehicle_id?.message}
-                  {...register('vehicle_id')}
-                />
+                <label className="block text-sm font-medium text-gray-300 mb-1.5">
+                  Select Vehicle *
+                </label>
+                <select
+                  value={vehicleId}
+                  onChange={(e) => setVehicleId(e.target.value)}
+                  className="w-full rounded-lg border border-gray-700 bg-surface px-3 py-2.5 text-white focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500/20"
+                >
+                  <option value="">Choose a vehicle</option>
+                  {vehicles.map((vehicle: any) => (
+                    <option key={vehicle.id} value={vehicle.id}>
+                      {vehicle.year} {vehicle.make} {vehicle.model} - {vehicle.license_plate}
+                    </option>
+                  ))}
+                </select>
                 {isLoadingVehicles && (
                   <p className="text-sm text-gray-400 mt-1">Loading vehicles...</p>
                 )}
-                {vehicles && vehicles.length === 0 && (
+                {!isLoadingVehicles && vehicles.length === 0 && (
                   <p className="text-sm text-yellow-500 mt-1">
                     No vehicles found. Please add a vehicle first.
                   </p>
@@ -166,55 +203,89 @@ export default function NewBookingPage() {
 
               {/* Service Selection */}
               <div>
-                <Select
-                  label="Select Service"
-                  placeholder="Choose a service"
-                  options={
-                    services?.map((service: any) => ({
-                      value: service.id,
-                      label: `${service.name} - $${service.price} (${service.duration}min)`,
-                    })) || []
-                  }
-                  error={errors.service_id?.message}
-                  {...register('service_id')}
-                />
-                {isLoadingServices && (
-                  <p className="text-sm text-gray-400 mt-1">Loading services...</p>
+                <label className="block text-sm font-medium text-gray-300 mb-1.5">
+                  Select Services *
+                </label>
+                {isLoadingServices ? (
+                  <p className="text-sm text-gray-400">Loading services...</p>
+                ) : (
+                  <div className="grid grid-cols-1 gap-3">
+                    {services.map((service: any) => (
+                      <div
+                        key={service.id}
+                        onClick={() => handleServiceToggle(service.id)}
+                        className={`p-4 rounded-lg border cursor-pointer transition-all ${
+                          selectedServices.includes(service.id)
+                            ? 'border-primary-500 bg-primary-500/10'
+                            : 'border-gray-700 hover:border-gray-600'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                            <div className={`w-5 h-5 rounded border flex items-center justify-center ${
+                              selectedServices.includes(service.id)
+                                ? 'bg-primary-500 border-primary-500'
+                                : 'border-gray-600'
+                            }`}>
+                              {selectedServices.includes(service.id) && (
+                                <CheckCircle className="w-4 h-4 text-white" />
+                              )}
+                            </div>
+                            <div>
+                              <p className="font-medium text-white">{service.name}</p>
+                              <p className="text-sm text-gray-400">{service.duration_minutes} min</p>
+                            </div>
+                          </div>
+                          <p className="font-semibold text-primary-400">${service.price}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 )}
               </div>
 
               {/* Date Selection */}
               <Input
-                label="Appointment Date"
+                label="Appointment Date *"
                 type="date"
-                error={errors.scheduled_date?.message}
+                value={bookingDate}
+                onChange={(e) => {
+                  setBookingDate(e.target.value);
+                  setStartTime(''); // Reset time when date changes
+                }}
                 helperText="Select your preferred date"
                 min={new Date().toISOString().split('T')[0]}
-                {...register('scheduled_date')}
               />
 
               {/* Time Selection */}
               <div>
-                <Select
-                  label="Appointment Time"
-                  placeholder="Choose a time slot"
-                  options={
-                    availableSlots?.map((slot: string) => ({
-                      value: slot,
-                      label: slot,
-                    })) || [
-                      { value: '09:00', label: '9:00 AM' },
-                      { value: '10:00', label: '10:00 AM' },
-                      { value: '11:00', label: '11:00 AM' },
-                      { value: '13:00', label: '1:00 PM' },
-                      { value: '14:00', label: '2:00 PM' },
-                      { value: '15:00', label: '3:00 PM' },
-                      { value: '16:00', label: '4:00 PM' },
-                    ]
-                  }
-                  error={errors.scheduled_time?.message}
-                  {...register('scheduled_time')}
-                />
+                <label className="block text-sm font-medium text-gray-300 mb-1.5">
+                  Appointment Time *
+                </label>
+                <select
+                  value={startTime}
+                  onChange={(e) => setStartTime(e.target.value)}
+                  disabled={!bookingDate || selectedServices.length === 0}
+                  className="w-full rounded-lg border border-gray-700 bg-surface px-3 py-2.5 text-white focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500/20 disabled:opacity-50"
+                >
+                  <option value="">
+                    {isLoadingSlots
+                      ? 'Loading available slots...'
+                      : !bookingDate || selectedServices.length === 0
+                      ? 'Select date and services first'
+                      : 'Choose a time slot'}
+                  </option>
+                  {slots.map((slot: string) => (
+                    <option key={slot} value={slot}>
+                      {slot}
+                    </option>
+                  ))}
+                </select>
+                {bookingDate && selectedServices.length > 0 && !isLoadingSlots && slots.length === 0 && (
+                  <p className="text-sm text-yellow-500 mt-1">
+                    No available slots for this date. Please try another date.
+                  </p>
+                )}
               </div>
 
               {/* Notes */}
@@ -224,14 +295,36 @@ export default function NewBookingPage() {
                 </label>
                 <textarea
                   rows={4}
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
                   placeholder="Any special requests or concerns?"
                   className="w-full rounded-lg border border-gray-700 bg-surface px-3 py-2 text-base text-white placeholder:text-gray-400 focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500/20"
-                  {...register('notes')}
                 />
-                {errors.notes && (
-                  <p className="mt-1.5 text-sm text-red-500">{errors.notes.message}</p>
-                )}
               </div>
+
+              {/* Summary */}
+              {selectedServices.length > 0 && (
+                <div className="p-4 bg-surface-light rounded-lg border border-gray-700">
+                  <h4 className="font-medium text-white mb-3 flex items-center gap-2">
+                    <Wrench className="w-4 h-4" />
+                    Booking Summary
+                  </h4>
+                  <div className="space-y-2 text-sm">
+                    <div className="flex justify-between text-gray-400">
+                      <span>Services selected:</span>
+                      <span>{selectedServices.length}</span>
+                    </div>
+                    <div className="flex justify-between text-gray-400">
+                      <span>Estimated duration:</span>
+                      <span>{calculateDuration()} min</span>
+                    </div>
+                    <div className="flex justify-between text-white font-semibold pt-2 border-t border-gray-700">
+                      <span>Total:</span>
+                      <span className="text-primary-400">${calculateTotal().toFixed(2)}</span>
+                    </div>
+                  </div>
+                </div>
+              )}
             </CardContent>
 
             <div className="px-6 pb-6 flex gap-3">
@@ -246,14 +339,14 @@ export default function NewBookingPage() {
               <Button
                 type="submit"
                 isLoading={createBookingMutation.isPending}
-                disabled={createBookingMutation.isPending}
+                disabled={createBookingMutation.isPending || !vehicleId || selectedServices.length === 0 || !bookingDate || !startTime}
                 className="flex-1"
               >
                 Schedule Booking
               </Button>
             </div>
-          </form>
-        </Card>
+          </Card>
+        </form>
       </div>
     </DashboardLayout>
   );

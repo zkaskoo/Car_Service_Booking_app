@@ -82,8 +82,12 @@ export default function ProfilePage() {
 
   // Change password mutation
   const changePasswordMutation = useMutation({
-    mutationFn: async (data: { current_password: string; new_password: string }) => {
-      const response = await userAPI.changePassword(data);
+    mutationFn: async (data: { current_password: string; new_password: string; confirm_password: string }) => {
+      const response = await userAPI.changePassword({
+        current_password: data.current_password,
+        password: data.new_password,
+        password_confirmation: data.confirm_password,
+      });
       return response.data;
     },
     onSuccess: () => {
@@ -108,6 +112,7 @@ export default function ProfilePage() {
     changePasswordMutation.mutate({
       current_password: data.current_password,
       new_password: data.new_password,
+      confirm_password: data.confirm_password,
     });
   };
 

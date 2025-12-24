@@ -57,6 +57,7 @@ export default function RegisterPage() {
         name: data.name,
         email: data.email,
         password: data.password,
+        password_confirmation: data.confirmPassword,
         phone: data.phone,
       });
     } catch (err) {

@@ -2,9 +2,11 @@
 
 namespace App\Actions;
 
+use App\Mail\VerifyEmailMail;
 use App\Models\EmailVerificationToken;
 use App\Models\User;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
 
 class RegisterUserAction
@@ -26,8 +28,7 @@ class RegisterUserAction
             'expires_at' => now()->addHours(24),
         ]);
 
-        // Send verification email
-        // Mail::to($user->email)->send(new VerifyEmailMail($token));
+        Mail::to($user->email)->send(new VerifyEmailMail($token, $user->email));
 
         return $user;
     }

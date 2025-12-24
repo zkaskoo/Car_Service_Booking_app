@@ -23,6 +23,7 @@ interface AuthContextType {
   register: (data: {
     email: string;
     password: string;
+    password_confirmation: string;
     name: string;
     phone?: string;
   }) => Promise<void>;
@@ -77,17 +78,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   const login = async (email: string, password: string) => {
     try {
       const response = await authAPI.login({ email, password });
-      const { access_token, refresh_token, user: userData } = response.data;
+      const { token, user: userData } = response.data;
 
-      localStorage.setItem('accessToken', access_token);
-      localStorage.setItem('refreshToken', refresh_token);
+      localStorage.setItem('accessToken', token);
       setUser(userData);
 
       router.push('/dashboard');
     } catch (error) {
-      const axiosError = error as AxiosError<{ detail: string }>;
+      const axiosError = error as AxiosError<{ message: string }>;
       throw new Error(
-        axiosError.response?.data?.detail || 'Login failed. Please try again.'
+        axiosError.response?.data?.message || 'Login failed. Please try again.'
       );
     }
   };
@@ -95,22 +95,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   const register = async (data: {
     email: string;
     password: string;
+    password_confirmation: string;
     name: string;
     phone?: string;
   }) => {
     try {
       const response = await authAPI.register(data);
-      const { access_token, refresh_token, user: userData } = response.data;
+      const { user: userData } = response.data;
 
-      localStorage.setItem('accessToken', access_token);
-      localStorage.setItem('refreshToken', refresh_token);
       setUser(userData);
 
       router.push('/verify-email');
     } catch (error) {
-      const axiosError = error as AxiosError<{ detail: string }>;
+      const axiosError = error as AxiosError<{ message: string }>;
       throw new Error(
-        axiosError.response?.data?.detail ||
+        axiosError.response?.data?.message ||
           'Registration failed. Please try again.'
       );
     }
@@ -132,7 +131,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   const refreshUser = async () => {
     try {
       const response = await authAPI.getCurrentUser();
-      setUser(response.data);
+      setUser(response.data.user || response.data);
     } catch (error) {
       console.error('Failed to refresh user:', error);
     }

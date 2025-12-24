@@ -75,51 +75,52 @@ export const authAPI = {
   register: (data: {
     email: string;
     password: string;
+    password_confirmation: string;
     name: string;
     phone?: string;
-  }) => api.post('/auth/register', data),
+  }) => api.post('/v1/register', data),
 
   login: (data: { email: string; password: string }) =>
-    api.post('/auth/login', data),
+    api.post('/v1/login', data),
 
-  logout: () => api.post('/auth/logout'),
+  logout: () => api.post('/v1/logout'),
 
-  verifyEmail: (token: string) =>
-    api.post('/auth/verify-email', { token }),
+  verifyEmail: (data: { email: string; token: string }) =>
+    api.post('/v1/verify-email', data),
 
   resendVerification: (email: string) =>
-    api.post('/auth/resend-verification', { email }),
+    api.post('/v1/resend-verification', { email }),
 
   forgotPassword: (email: string) =>
-    api.post('/auth/forgot-password', { email }),
+    api.post('/v1/forgot-password', { email }),
 
-  resetPassword: (data: { token: string; password: string }) =>
-    api.post('/auth/reset-password', data),
+  resetPassword: (data: { email: string; token: string; password: string; password_confirmation: string }) =>
+    api.post('/v1/reset-password', data),
 
-  getCurrentUser: () => api.get('/auth/me'),
+  getCurrentUser: () => api.get('/v1/me'),
 };
 
 // User API
 export const userAPI = {
-  getProfile: () => api.get('/users/profile'),
+  getProfile: () => api.get('/v1/profile'),
 
   updateProfile: (data: {
     name?: string;
     phone?: string;
-    address?: string;
-  }) => api.put('/users/profile', data),
+  }) => api.put('/v1/profile', data),
 
   changePassword: (data: {
     current_password: string;
-    new_password: string;
-  }) => api.put('/users/password', data),
+    password: string;
+    password_confirmation: string;
+  }) => api.put('/v1/profile', data),
 };
 
 // Vehicle API
 export const vehicleAPI = {
-  getAll: () => api.get('/vehicles'),
+  getAll: () => api.get('/v1/vehicles'),
 
-  getById: (id: string) => api.get(`/vehicles/${id}`),
+  getById: (id: string) => api.get(`/v1/vehicles/${id}`),
 
   create: (data: {
     make: string;
@@ -127,7 +128,8 @@ export const vehicleAPI = {
     year: number;
     license_plate: string;
     vin?: string;
-  }) => api.post('/vehicles', data),
+    color?: string;
+  }) => api.post('/v1/vehicles', data),
 
   update: (
     id: string,
@@ -137,62 +139,78 @@ export const vehicleAPI = {
       year?: number;
       license_plate?: string;
       vin?: string;
+      color?: string;
     }
-  ) => api.put(`/vehicles/${id}`, data),
+  ) => api.put(`/v1/vehicles/${id}`, data),
 
-  delete: (id: string) => api.delete(`/vehicles/${id}`),
+  delete: (id: string) => api.delete(`/v1/vehicles/${id}`),
 };
 
 // Service API
 export const serviceAPI = {
-  getAll: () => api.get('/services'),
+  getAll: (params?: { category_id?: number }) => api.get('/v1/services', { params }),
 
-  getById: (id: string) => api.get(`/services/${id}`),
+  getById: (id: string) => api.get(`/v1/services/${id}`),
 
-  getCategories: () => api.get('/services/categories'),
+  getCategories: () => api.get('/v1/service-categories'),
 };
 
 // Booking API
 export const bookingAPI = {
-  getAll: (params?: { status?: string; page?: number; limit?: number }) =>
-    api.get('/bookings', { params }),
+  getAll: (params?: { status?: string; page?: number; per_page?: number }) =>
+    api.get('/v1/bookings', { params }),
 
-  getById: (id: string) => api.get(`/bookings/${id}`),
+  getById: (id: string) => api.get(`/v1/bookings/${id}`),
 
   create: (data: {
-    vehicle_id: string;
-    service_id: string;
-    scheduled_date: string;
-    scheduled_time: string;
+    vehicle_id: number;
+    service_ids: number[];
+    booking_date: string;
+    start_time: string;
     notes?: string;
-  }) => api.post('/bookings', data),
+  }) => api.post('/v1/bookings', data),
 
   update: (
     id: string,
     data: {
-      scheduled_date?: string;
-      scheduled_time?: string;
+      booking_date?: string;
+      start_time?: string;
       notes?: string;
     }
-  ) => api.put(`/bookings/${id}`, data),
+  ) => api.put(`/v1/bookings/${id}`, data),
 
-  cancel: (id: string) => api.put(`/bookings/${id}/cancel`),
+  cancel: (id: string, reason?: string) => api.post(`/v1/bookings/${id}/cancel`, { cancellation_reason: reason }),
 
-  getAvailableSlots: (date: string, serviceId: string) =>
-    api.get('/bookings/available-slots', {
-      params: { date, service_id: serviceId },
-    }),
+  checkAvailability: (data: { date: string; service_ids: number[] }) =>
+    api.post('/v1/bookings/check-availability', data),
 };
 
-// Dashboard API
+// Dashboard API - These will use the bookings endpoint
 export const dashboardAPI = {
-  getStats: () => api.get('/dashboard/stats'),
-
-  getRecentBookings: (limit = 5) =>
-    api.get('/dashboard/recent-bookings', { params: { limit } }),
+  getStats: () => api.get('/v1/bookings').then(res => {
+    const bookings = res.data.data || res.data || [];
+    const now = new Date();
+    return {
+      data: {
+        total_bookings: bookings.length,
+        upcoming_bookings: bookings.filter((b: any) => new Date(b.booking_date || b.date) >= now && b.status !== 'cancelled').length,
+        completed_bookings: bookings.filter((b: any) => b.status === 'completed').length,
+        pending_bookings: bookings.filter((b: any) => b.status === 'pending').length,
+      }
+    };
+  }),
 
   getUpcomingBookings: (limit = 5) =>
-    api.get('/dashboard/upcoming-bookings', { params: { limit } }),
+    api.get('/v1/bookings').then(res => {
+      const bookings = res.data.data || res.data || [];
+      const now = new Date();
+      return {
+        data: bookings
+          .filter((b: any) => new Date(b.booking_date || b.date) >= now && b.status !== 'cancelled')
+          .sort((a: any, b: any) => new Date(a.booking_date || a.date).getTime() - new Date(b.booking_date || b.date).getTime())
+          .slice(0, limit)
+      };
+    }),
 };
 
 export default api;

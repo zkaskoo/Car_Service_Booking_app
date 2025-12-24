@@ -1,36 +1,39 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { authAPI } from '@/lib/api';
 import Button from '@/components/ui/Button';
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/Card';
+import { Card, CardContent } from '@/components/ui/Card';
 import { Mail, CheckCircle, XCircle, Loader2, Car } from 'lucide-react';
 
-export default function VerifyEmailPage() {
+function VerifyEmailContent() {
   const { user, refreshUser } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
   const token = searchParams.get('token');
+  const email = searchParams.get('email');
 
   const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
   const [message, setMessage] = useState<string>('');
   const [isResending, setIsResending] = useState(false);
 
   useEffect(() => {
-    if (token) {
-      verifyEmail(token);
+    if (token && email) {
+      verifyEmail(token, email);
     }
-  }, [token]);
+  }, [token, email]);
 
-  const verifyEmail = async (verificationToken: string) => {
+  const verifyEmail = async (verificationToken: string, userEmail: string) => {
     setStatus('loading');
     try {
-      await authAPI.verifyEmail(verificationToken);
+      await authAPI.verifyEmail({ email: userEmail, token: verificationToken });
       setStatus('success');
       setMessage('Your email has been verified successfully!');
-      await refreshUser();
+      if (refreshUser) {
+        await refreshUser();
+      }
 
       // Redirect to dashboard after 2 seconds
       setTimeout(() => {
@@ -39,7 +42,7 @@ export default function VerifyEmailPage() {
     } catch (error: any) {
       setStatus('error');
       setMessage(
-        error.response?.data?.detail || 'Email verification failed. The link may be invalid or expired.'
+        error.response?.data?.message || 'Email verification failed. The link may be invalid or expired.'
       );
     }
   };
@@ -148,5 +151,17 @@ export default function VerifyEmailPage() {
         </p>
       </div>
     </div>
+  );
+}
+
+export default function VerifyEmailPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-primary-500 border-r-transparent"></div>
+      </div>
+    }>
+      <VerifyEmailContent />
+    </Suspense>
   );
 }
