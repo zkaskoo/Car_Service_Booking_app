@@ -66,6 +66,15 @@ services:
       CACHE_DRIVER: redis
       QUEUE_CONNECTION: redis
       SESSION_DRIVER: redis
+      MAIL_MAILER: smtp
+      MAIL_HOST: mailpit
+      MAIL_PORT: 1025
+      MAIL_USERNAME: null
+      MAIL_PASSWORD: null
+      MAIL_ENCRYPTION: null
+      MAIL_FROM_ADDRESS: noreply@carservice.local
+      MAIL_FROM_NAME: Car Service Booking
+      SANCTUM_STATEFUL_DOMAINS: localhost:3000,127.0.0.1:3000
     depends_on:
       postgres:
         condition: service_healthy
@@ -132,6 +141,14 @@ services:
       REDIS_HOST: redis
       REDIS_PORT: 6379
       QUEUE_CONNECTION: redis
+      MAIL_MAILER: smtp
+      MAIL_HOST: mailpit
+      MAIL_PORT: 1025
+      MAIL_USERNAME: null
+      MAIL_PASSWORD: null
+      MAIL_ENCRYPTION: null
+      MAIL_FROM_ADDRESS: noreply@carservice.local
+      MAIL_FROM_NAME: Car Service Booking
     depends_on:
       postgres:
         condition: service_healthy

@@ -17,15 +17,15 @@ class AdminBookingController extends Controller
         }
 
         if ($request->has('date')) {
-            $query->whereDate('date', $request->date);
+            $query->whereDate('booking_date', $request->date);
         }
 
         if ($request->has('user_id')) {
             $query->where('user_id', $request->user_id);
         }
 
-        $bookings = $query->orderBy('date', 'desc')
-            ->orderBy('time', 'desc')
+        $bookings = $query->orderBy('booking_date', 'desc')
+            ->orderBy('start_time', 'desc')
             ->paginate($request->get('per_page', 15));
 
         return response()->json([
@@ -92,17 +92,17 @@ class AdminBookingController extends Controller
         return response()->json([
             'data' => [
                 'today' => [
-                    'total' => Booking::whereDate('date', $today)->count(),
-                    'pending' => Booking::whereDate('date', $today)->where('status', 'pending')->count(),
-                    'confirmed' => Booking::whereDate('date', $today)->where('status', 'confirmed')->count(),
-                    'in_progress' => Booking::whereDate('date', $today)->where('status', 'in_progress')->count(),
-                    'completed' => Booking::whereDate('date', $today)->where('status', 'completed')->count(),
+                    'total' => Booking::whereDate('booking_date', $today)->count(),
+                    'pending' => Booking::whereDate('booking_date', $today)->where('status', 'pending')->count(),
+                    'confirmed' => Booking::whereDate('booking_date', $today)->where('status', 'confirmed')->count(),
+                    'in_progress' => Booking::whereDate('booking_date', $today)->where('status', 'in_progress')->count(),
+                    'completed' => Booking::whereDate('booking_date', $today)->where('status', 'completed')->count(),
                 ],
                 'this_month' => [
                     'total' => Booking::where('created_at', '>=', $thisMonth)->count(),
                     'completed' => Booking::where('created_at', '>=', $thisMonth)->where('status', 'completed')->count(),
                     'cancelled' => Booking::where('created_at', '>=', $thisMonth)->where('status', 'cancelled')->count(),
-                    'revenue' => Booking::where('created_at', '>=', $thisMonth)->where('status', 'completed')->sum('total_amount'),
+                    'revenue' => Booking::where('created_at', '>=', $thisMonth)->where('status', 'completed')->sum('total_price'),
                 ],
                 'all_time' => [
                     'total' => Booking::count(),

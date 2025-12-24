@@ -6,8 +6,8 @@ export const api: AxiosInstance = axios.create({
   baseURL: API_BASE_URL,
   headers: {
     'Content-Type': 'application/json',
+    'Accept': 'application/json',
   },
-  withCredentials: true,
 });
 
 // Request interceptor to add auth token
@@ -185,28 +185,38 @@ export const bookingAPI = {
     api.post('/v1/bookings/check-availability', data),
 };
 
-// Dashboard API - These will use the bookings endpoint
+// Dashboard API - Combines bookings and vehicles data
 export const dashboardAPI = {
-  getStats: () => api.get('/v1/bookings').then(res => {
-    const bookings = res.data.data || res.data || [];
+  getStats: async () => {
+    const [bookingsRes, vehiclesRes] = await Promise.all([
+      api.get('/v1/bookings'),
+      api.get('/v1/vehicles'),
+    ]);
+
+    const bookings = bookingsRes.data.data || bookingsRes.data.bookings || bookingsRes.data || [];
+    const vehicles = vehiclesRes.data.vehicles || vehiclesRes.data || [];
     const now = new Date();
+
     return {
       data: {
         total_bookings: bookings.length,
-        upcoming_bookings: bookings.filter((b: any) => new Date(b.booking_date || b.date) >= now && b.status !== 'cancelled').length,
+        upcoming_bookings: bookings.filter((b: any) =>
+          new Date(b.booking_date || b.date) >= now &&
+          ['pending', 'confirmed'].includes(b.status)
+        ).length,
         completed_bookings: bookings.filter((b: any) => b.status === 'completed').length,
-        pending_bookings: bookings.filter((b: any) => b.status === 'pending').length,
+        total_vehicles: vehicles.length,
       }
     };
-  }),
+  },
 
   getUpcomingBookings: (limit = 5) =>
     api.get('/v1/bookings').then(res => {
-      const bookings = res.data.data || res.data || [];
+      const bookings = res.data.data || res.data.bookings || res.data || [];
       const now = new Date();
       return {
         data: bookings
-          .filter((b: any) => new Date(b.booking_date || b.date) >= now && b.status !== 'cancelled')
+          .filter((b: any) => new Date(b.booking_date || b.date) >= now && ['pending', 'confirmed'].includes(b.status))
           .sort((a: any, b: any) => new Date(a.booking_date || a.date).getTime() - new Date(b.booking_date || b.date).getTime())
           .slice(0, limit)
       };

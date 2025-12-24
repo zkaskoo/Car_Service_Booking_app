@@ -32,13 +32,8 @@ export default function DashboardPage() {
   const { data: stats } = useQuery({
     queryKey: ['dashboardStats'],
     queryFn: async () => {
-      // Mock stats - replace with actual API call when available
-      return {
-        total_bookings: 12,
-        upcoming_bookings: 2,
-        completed_bookings: 8,
-        total_vehicles: 3,
-      };
+      const response = await dashboardAPI.getStats();
+      return response.data;
     },
   });
 
