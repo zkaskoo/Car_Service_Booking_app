@@ -18,8 +18,14 @@ const vehicleSchema = z.object({
   model: z.string().min(1, 'Model is required'),
   year: z.number().min(1900).max(new Date().getFullYear() + 1),
   license_plate: z.string().min(1, 'License plate is required'),
+  color: z.string().optional(),
   vin: z.string().optional(),
 });
+
+const colorOptions = [
+  'White', 'Black', 'Silver', 'Gray', 'Red', 'Blue',
+  'Green', 'Brown', 'Beige', 'Orange', 'Yellow', 'Gold'
+];
 
 type VehicleFormData = z.infer<typeof vehicleSchema>;
 
@@ -101,6 +107,7 @@ export default function VehiclesPage() {
       model: '',
       year: new Date().getFullYear(),
       license_plate: '',
+      color: '',
       vin: '',
     });
     setError('');
@@ -114,6 +121,7 @@ export default function VehiclesPage() {
       model: vehicle.model,
       year: vehicle.year,
       license_plate: vehicle.license_plate,
+      color: vehicle.color || '',
       vin: vehicle.vin || '',
     });
     setError('');
@@ -181,12 +189,18 @@ export default function VehiclesPage() {
                   <h3 className="text-lg font-semibold text-white mb-1">
                     {vehicle.make} {vehicle.model}
                   </h3>
-                  <p className="text-sm text-gray-400 mb-3">Year: {vehicle.year}</p>
+                  <p className="text-sm text-gray-400 mb-3">{vehicle.year} {vehicle.color && `• ${vehicle.color}`}</p>
                   <div className="space-y-2 text-sm">
                     <div className="flex justify-between">
                       <span className="text-gray-500">License Plate:</span>
                       <span className="text-white font-medium">{vehicle.license_plate}</span>
                     </div>
+                    {vehicle.color && (
+                      <div className="flex justify-between">
+                        <span className="text-gray-500">Color:</span>
+                        <span className="text-white">{vehicle.color}</span>
+                      </div>
+                    )}
                     {vehicle.vin && (
                       <div className="flex justify-between">
                         <span className="text-gray-500">VIN:</span>
@@ -260,6 +274,23 @@ export default function VehiclesPage() {
               error={errors.license_plate?.message}
               {...register('license_plate')}
             />
+
+            <div className="space-y-1.5">
+              <label className="block text-sm font-medium text-gray-300">
+                Color
+              </label>
+              <select
+                {...register('color')}
+                className="w-full px-4 py-2.5 bg-surface-light border border-gray-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all"
+              >
+                <option value="">Select a color</option>
+                {colorOptions.map((color) => (
+                  <option key={color} value={color}>
+                    {color}
+                  </option>
+                ))}
+              </select>
+            </div>
 
             <Input
               label="VIN (Optional)"

@@ -38,7 +38,9 @@ class VehicleController extends Controller
 
     public function show(Request $request, Vehicle $vehicle)
     {
-        $this->authorize('view', $vehicle);
+        if ($vehicle->user_id !== $request->user()->id) {
+            return response()->json(['message' => 'Unauthorized.'], 403);
+        }
 
         return response()->json([
             'vehicle' => $vehicle,
@@ -47,7 +49,9 @@ class VehicleController extends Controller
 
     public function update(Request $request, Vehicle $vehicle)
     {
-        $this->authorize('update', $vehicle);
+        if ($vehicle->user_id !== $request->user()->id) {
+            return response()->json(['message' => 'Unauthorized.'], 403);
+        }
 
         $validated = $request->validate([
             'make' => ['sometimes', 'string', 'max:255'],
@@ -68,7 +72,9 @@ class VehicleController extends Controller
 
     public function destroy(Request $request, Vehicle $vehicle)
     {
-        $this->authorize('delete', $vehicle);
+        if ($vehicle->user_id !== $request->user()->id) {
+            return response()->json(['message' => 'Unauthorized.'], 403);
+        }
 
         $vehicle->delete();
 
