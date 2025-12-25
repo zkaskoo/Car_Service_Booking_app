@@ -50,7 +50,7 @@ export default function VehiclesPage() {
     queryKey: ['vehicles'],
     queryFn: async () => {
       const response = await vehicleAPI.getAll();
-      return response.data;
+      return response.data.vehicles || [];
     },
   });
 
